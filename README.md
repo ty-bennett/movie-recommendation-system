@@ -5,4 +5,4 @@
   - Ty Bennett
   - Ethan Blackwood 
   - Dhruv Patel
-  - last person
+  - Brendon Mustachio
