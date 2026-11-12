@@ -1,3 +1,5 @@
+import numpy as np
+
 def bias_baseline(R):
   # create a boolean mask where True indicates a known rating exists (is not NaN)
   known = ~np.isnan(R)
@@ -25,3 +27,43 @@ def bias_baseline(R):
 
   # return the global mean, user bias array, and movie bias array
   return mu, b_user, b_item
+
+
+# build a full prediction matrix from the bias baseline
+def baseline_matrix(R):
+  # get the global mean, user biases, and movie biases from the known ratings
+  mu, b_user, b_item = bias_baseline(R)
+
+  # b_user[:, None] is a column and b_item[None, :] is a row, so numpy broadcasting
+  # adds them into a full (users x movies) matrix with a prediction for every pair
+  return mu + b_user[:, None] + b_item[None, :]
+
+
+# build a rank-k matrix from an svd that was already computed
+def rank_k(U, s, Vt, k):
+  # keep only the first k columns of U, the first k singular values, and the
+  # first k rows of Vt, then multiply them back together
+  return U[:, :k] @ np.diag(s[:k]) @ Vt[:k, :]
+
+
+# predict ratings by repeatedly filling in the missing deviations with svd guesses
+def iterative_svd_predict(R, k, n_iter=10):
+  # boolean mask of which ratings are known
+  known = ~np.isnan(R)
+
+  # baseline prediction for every user-movie pair
+  B = baseline_matrix(R)
+
+  # deviations from the baseline at known ratings, 0 in the gaps to start
+  X = np.where(known, R - B, 0.0)
+
+  for _ in range(n_iter):
+    # take the svd of the current deviation matrix and keep the rank-k part
+    U, s, Vt = np.linalg.svd(X, full_matrices=False)
+    L = rank_k(U, s, Vt, k)
+
+    # keep the real deviations at known ratings and use the rank-k guesses in the gaps
+    X = np.where(known, R - B, L)
+
+  # add the baseline back so the predictions are in stars
+  return L + B
